@@ -153,10 +153,10 @@ class Jaipur:
             print('P2 final score:', self._player2.final_score)
             print()
         
-            if isinstance(self._player1, Agent):
+            if learn and isinstance(self._player1, Agent):
                 self._player1.learn_state(self._player1.get_state(), self.winner)
       
-            if isinstance(self._player2, Agent):
+            if learn and isinstance(self._player2, Agent):
                 self._player2.learn_state(self._player2.get_state(), self.winner)
 
         return self.winner
@@ -374,7 +374,10 @@ class Player:
 
         # move = int(input('Choose move..'))
 
-        move = random.choice(all_moves)
+        # move = random.choice(all_moves)
+        
+        # smart player - always make the last move
+        move = all_moves[-1]
         if move[0] == 0:
             self.take(move[1])
         elif move[0] == 1:
@@ -417,7 +420,8 @@ class Agent(Player):
         # for i in all_moves:
         #     print(i)
 
-        for m, c in all_moves:
+        if_equal_divide_by = 1
+        for m, c in sorted(all_moves, reverse=False):
             temp_self = copy.deepcopy(self)
 
             if m == 0:
@@ -445,9 +449,13 @@ class Agent(Player):
                 v = v_temp
 
             elif v_temp == v:
-                toss = random.randint(0, 1)
-                if toss == 1:
-                    opt_self = copy.deepcopy(temp_self)
+                opt_self = copy.deepcopy(temp_self)
+                # # gives uniform prob distribution for all equal value states
+                # update_prob = 1.0 / if_equal_divide_by
+                # p = random.uniform(0, 1)
+                # if p > (1 - update_prob):
+                #     opt_self = copy.deepcopy(temp_self)
+                # if_equal_divide_by += 1
 
         self = copy.deepcopy(opt_self)
 
@@ -550,13 +558,13 @@ def play_to_learn(episodes, muted=True):
 def test(n=100):
     load_values()
 
-    # print('----------------------------------------------------------------- Agent vs Agent')
-    # ava_p1_wins = 0
-    # for i in range(n):
-    #     game = Jaipur(Agent, Agent)
-    #     winner = game.play_game(learn=False, muted=True)
-    #     if winner == 'P1':
-    #         ava_p1_wins += 1
+    print('----------------------------------------------------------------- Agent vs Agent')
+    ava_p1_wins = 0
+    for i in range(n):
+        game = Jaipur(Agent, Agent)
+        winner = game.play_game(learn=False, muted=True)
+        if winner == 'P1':
+            ava_p1_wins += 1
 
     print('----------------------------------------------------------------- Agent vs Player')
     avp_p1_wins = 0
@@ -585,10 +593,10 @@ def test(n=100):
 
     print('----------------------------------------------------------------- Result')
 
-#    print('----------------------------------------------------------------- Agent vs Agent')
-#    print('Total:', n)
-#    print('P1:', ava_p1_wins)
-#    print('P2:', n - ava_p1_wins)
+    print('----------------------------------------------------------------- Agent vs Agent')
+    print('Total:', n)
+    print('P1:', ava_p1_wins)
+    print('P2:', n - ava_p1_wins)
 
     print('----------------------------------------------------------------- Agent vs Player')
     print('Total:', n)
@@ -608,13 +616,12 @@ def test(n=100):
 
 
 def play():
-    play_to_learn(10000, muted=True)
+    # play_to_learn(10000, muted=True)
 
     game = Jaipur(Player, Agent)
     game.play_game(learn=False, muted=False)
 
-    test()
-
+    test(500)
 
 if __name__ == "__main__":
     play()
