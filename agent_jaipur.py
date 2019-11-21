@@ -217,21 +217,22 @@ class Player:
     def get_state(self): #TODO
         #return tuple((self.hand_size(), self.camel_count))
 
-        score = self.score() // 10
+        score = self.score() // 5
         pile_size = self._game.pile_size() // 5
 
-        camel = self.camel_count // 4
+        camel = self.camel_count // 2
 
         # hand = tuple(self.hand.items())
         hand = tuple(self.hand[i] for i in Commodity)
         hand_size = self.hand_size()
 
-        # market = tuple(self._game.market.items())
-        market_costly = sum([self._game.market[i] for i in Commodity if Commodity.is_costly(i)])
-        market_non_costly = sum([self._game.market[i] for i in Commodity if (not Commodity.is_costly(i)) and (not i == Commodity.CAMEL)])
-        market_camel = sum([self._game.market[i] for i in Commodity if i == Commodity.CAMEL])
+        # market_costly = sum([self._game.market[i] for i in Commodity if Commodity.is_costly(i)])
+        # market_non_costly = sum([self._game.market[i] for i in Commodity if (not Commodity.is_costly(i)) and (not i == Commodity.CAMEL)])
+        # market_camel = sum([self._game.market[i] for i in Commodity if i == Commodity.CAMEL])
 
-        market = (market_costly, market_non_costly, market_camel)
+        # market = (market_costly, market_non_costly, market_camel)
+        
+        market = tuple(self._game.market.items())
 
         state = tuple((score, pile_size, hand_size, camel, market))
         return state
@@ -607,7 +608,7 @@ def test(n=100):
 
 
 def play():
-    # play_to_learn(10000, muted=True)
+    play_to_learn(10000, muted=True)
 
     game = Jaipur(Player, Agent)
     game.play_game(learn=False, muted=False)
