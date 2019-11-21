@@ -621,7 +621,7 @@ def play():
     game = Jaipur(Player, Agent)
     game.play_game(learn=False, muted=False)
 
-    test(500)
+    test(100)
 
 if __name__ == "__main__":
     play()
