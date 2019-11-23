@@ -220,7 +220,7 @@ class Player:
         score = self.score() // 5
         pile_size = self._game.pile_size() // 5
 
-        camel = self.camel_count // 2
+        camel = self.camel_count
 
         # hand = tuple(self.hand.items())
         hand = tuple(self.hand[i] for i in Commodity)
@@ -232,9 +232,9 @@ class Player:
 
         # market = (market_costly, market_non_costly, market_camel)
         
-        market = tuple(self._game.market.items())
+        market = tuple(self._game.market[i] for i in Commodity)
 
-        state = tuple((score, pile_size, hand_size, camel, market))
+        state = tuple((score, pile_size, hand_size, hand, camel, market))
         return state
 
     def get_possible_trades(self, give_commodities, take_commodities):
@@ -616,7 +616,7 @@ def test(n=100):
 
 
 def play():
-    # play_to_learn(10000, muted=True)
+    play_to_learn(100000, muted=True)
 
     game = Jaipur(Player, Agent)
     game.play_game(learn=False, muted=False)
