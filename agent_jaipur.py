@@ -6,6 +6,11 @@ import numpy as np
 import copy
 import pickle
 
+@unique
+class Action(IntEnum):
+    TAKE = 0
+    SELL = 1
+    TRADE = 2
 
 state_values = dict()
 
@@ -20,7 +25,7 @@ class Commodity(IntEnum):
     DIAMOND = 6
 
     @classmethod
-    def is_costly(self, commodity):
+    def is_precious(self, commodity):
         return commodity in [self.DIAMOND, self.GOLD, self.SILVER]
 
 
@@ -38,10 +43,10 @@ class Jaipur:
             Commodity.LEATHER:  [1, 1, 1, 1, 1, 1, 2, 3, 4], 
         }
 
-        self._pile = [Commodity.DIAMOND] * 6 + [Commodity.GOLD] * 6 + [Commodity.SILVER] * 6 + \
+        self._deck = [Commodity.DIAMOND] * 6 + [Commodity.GOLD] * 6 + [Commodity.SILVER] * 6 + \
                        [Commodity.SILK] * 8 + [Commodity.SPICE] * 8 + [Commodity.LEATHER] * 10 + \
                        [Commodity.CAMEL] * 8
-        random.shuffle(self._pile)
+        random.shuffle(self._deck)
 
         self.market = Counter()
         for i in Commodity:
@@ -50,14 +55,14 @@ class Jaipur:
         self.market[Commodity.CAMEL] = 3
 
         for i in range(2):
-            self.market[self._pile.pop()] += 1
+            self.market[self._deck.pop()] += 1
 
         self._player1 = player1_type(tag='P1', game=self)
         self._player2 = player2_type(tag='P2', game=self)
 
         for i in range(5):
             for _player in self._player1, self._player2:
-                commodity = self._pile.pop()
+                commodity = self._deck.pop()
                 if commodity == Commodity.CAMEL:
                     _player.camel_count += 1
                 else:
@@ -68,8 +73,8 @@ class Jaipur:
         self._players_gen = cycle([self._player1, self._player2]) 
         self.player_turn = next(self._players_gen)
 
-    def pile_size(self):
-        return len(self._pile)
+    def deck_size(self):
+        return len(self._deck)
 
     def pick_commodity(self, commodity=None):
         if sum(self.market.values()) == 0:
@@ -94,14 +99,14 @@ class Jaipur:
             self.market[Commodity.CAMEL] = 0
 
             for i in range(market_camels):
-                if self._pile:
-                    self.market[self._pile.pop()] += 1
+                if self._deck:
+                    self.market[self._deck.pop()] += 1
 
         else:
             pick_count = 1
             self.market[picked_commodity] -= 1
-            if self._pile:
-                self.market[self._pile.pop()] += 1
+            if self._deck:
+                self.market[self._deck.pop()] += 1
 
         return (picked_commodity, pick_count)
 
@@ -118,7 +123,7 @@ class Jaipur:
             return
 
         print('price_tokens: ', self.price_tokens.values())
-        print('pile size:', self.pile_size())
+        print('deck size:', self.deck_size())
         self.pprint('market: ', self.market)
         self.pprint('P1 hand: ', self._player1.hand)
         self.pprint('P2 hand: ', self._player2.hand)
@@ -163,7 +168,7 @@ class Jaipur:
 
 
     def switch_player(self, learn):
-        self = self.player_turn.make_move(self.winner, learn)
+        self = self.player_turn.do_action(self.winner, learn)
 
         self.player_turn = next(self._players_gen)
         return self
@@ -218,7 +223,7 @@ class Player:
         #return tuple((self.hand_size(), self.camel_count))
 
         score = self.score() // 5
-        pile_size = self._game.pile_size() // 5
+        deck_size = self._game.deck_size() // 5
 
         camel = self.camel_count
 
@@ -226,15 +231,15 @@ class Player:
         hand = tuple(self.hand[i] for i in Commodity)
         hand_size = self.hand_size()
 
-        # market_costly = sum([self._game.market[i] for i in Commodity if Commodity.is_costly(i)])
-        # market_non_costly = sum([self._game.market[i] for i in Commodity if (not Commodity.is_costly(i)) and (not i == Commodity.CAMEL)])
+        # market_precious = sum([self._game.market[i] for i in Commodity if Commodity.is_precious(i)])
+        # market_non_precious = sum([self._game.market[i] for i in Commodity if (not Commodity.is_precious(i)) and (not i == Commodity.CAMEL)])
         # market_camel = sum([self._game.market[i] for i in Commodity if i == Commodity.CAMEL])
 
-        # market = (market_costly, market_non_costly, market_camel)
+        # market = (market_precious, market_non_precious, market_camel)
         
         market = tuple(self._game.market[i] for i in Commodity)
 
-        state = tuple((score, pile_size, hand_size, hand, camel, market))
+        state = tuple((score, deck_size, hand_size, hand, camel, market))
         return state
 
     def get_possible_trades(self, give_commodities, take_commodities):
@@ -259,41 +264,31 @@ class Player:
                 if len(set(give).intersection(set(take))) == 0:
                     possible_trades += [(give, take)]
 
-        # print('possible trades')
-        # for i in possible_trades:
-        #     print(i[0])
-        #     print(i[1])
-        #     print()
-
         return possible_trades
 
-    def get_all_moves(self):
-        moves = [0, 1, 2] # TAKE, SELL, TRADE
-
+    def get_all_actions(self):
         take_commodities = [i for i in self._game.market if self._game.market[i] > 0]
-        sell_commodities = [i for i in self.hand if (self.hand[i] > 1) or (not Commodity.is_costly(i) and self.hand[i] > 0)]
+        sell_commodities = [i for i in self.hand if (self.hand[i] > 1) or (not Commodity.is_precious(i) and self.hand[i] > 0)]
 
-        all_moves = []
+        all_actions = []
         if self.hand_size() < 7:
-            all_moves += [(moves[0], i) for i in take_commodities]
-        all_moves += [(moves[1], i) for i in sell_commodities]
+            all_actions += [(Action.TAKE, i) for i in take_commodities]
+        all_actions += [(Action.SELL, i) for i in sell_commodities]
 
-        trade_give_commodities = []
+        commodities_to_give = []
         for i in self.hand:
-            trade_give_commodities += [i] * self.hand[i]
-        trade_give_commodities += [Commodity.CAMEL] * self.camel_count
+            commodities_to_give += [i] * self.hand[i]
+        commodities_to_give += [Commodity.CAMEL] * self.camel_count
 
-        trade_take_commodities = []
+        commodities_to_take = []
         for i in self._game.market:
             if i != Commodity.CAMEL:
-                trade_take_commodities += [i] * self._game.market[i]
+                commodities_to_take += [i] * self._game.market[i]
 
-        # TODO Enable trading 
-        # possible_trades = self.get_possible_trades(trade_give_commodities, trade_take_commodities)
+        possible_trades = self.get_possible_trades(commodities_to_give, commodities_to_take)
+        all_actions += [(Action.TRADE, i) for i in possible_trades]
 
-        # all_moves += [(moves[2], i) for i in possible_trades]
-
-        return all_moves
+        return all_actions
 
 
     def take(self, commodity=None):
@@ -319,9 +314,9 @@ class Player:
         if commodity is None:
             commodity = self.hand.most_common(1)[0][0]
 
-        if ((not Commodity.is_costly(commodity)) and self.hand[commodity] > 0) or self.hand[commodity] > 1:
+        if ((not Commodity.is_precious(commodity)) and self.hand[commodity] > 0) or self.hand[commodity] > 1:
 
-            count = self.hand[commodity] # TODO As of now sell all cards of this type
+            count = self.hand[commodity] #TODO As of now sell all cards of this type
 
             for i in range(count):
                 if self._game.price_tokens[commodity]:
@@ -366,24 +361,30 @@ class Player:
         self.camel_count -= give[Commodity.CAMEL]
         
 
-    def make_move(self, winner, learn=False):
-        all_moves = self.get_all_moves()
+    def do_action(self, winner, learn=False):
+        all_actions = self.get_all_actions()
+        action = random.choice(all_actions)
 
-        # for i, move in enumerate(all_moves):
-        #     print(i, move)
+        for i, action in enumerate(all_actions):
+            #to make print look uncluttered
+            if action[0] == Action.TRADE:
+                print(i, action[0], end=' : ')
+                for c in action[1][0]:
+                    print(c, end=', ')
+                print('with', end=' ')
+                for c in action[1][1]:
+                    print(c, end=', ')
+                print()
+            else:
+                print(i, action[0], ':', action[1])
+        action = all_actions[int(input('Choose action..'))]
 
-        # move = int(input('Choose move..'))
-
-        # move = random.choice(all_moves)
-        
-        # smart player - always make the last move
-        move = all_moves[-1]
-        if move[0] == 0:
-            self.take(move[1])
-        elif move[0] == 1:
-            self.sell(move[1])
-        elif move[0] == 2:
-            self.trade(move[1][0], move[1][1])
+        if action[0] == Action.TAKE:
+            self.take(action[1])
+        elif action[0] == Action.SELL:
+            self.sell(action[1])
+        elif action[0] == Action.TRADE:
+            self.trade(action[1][0], action[1][1])
 
         return self._game
 
@@ -392,7 +393,7 @@ class Agent(Player):
     def __init__(self, tag, game):
         super().__init__(tag, game)
 
-    def make_move(self, winner, learn):
+    def do_action(self, winner, learn):
         if learn:
             self.learn_state(self.get_state(), winner)
         
@@ -404,24 +405,24 @@ class Agent(Player):
         p = random.uniform(0, 1)
 
         if p < epsilon:
-            self._game = self.make_optimal_move()
+            self._game = self.do_optimal_action()
 
         else:
-            super().make_move(winner, learn)
+            super().do_action(winner, learn)
 
         return self._game
 
-    def make_optimal_move(self):
+    def do_optimal_action(self):
         opt_self = None
         v = -float('Inf')
 
-        all_moves = self.get_all_moves()
-        # print('all_moves')
-        # for i in all_moves:
+        all_actions = self.get_all_actions()
+        # print('all_actions')
+        # for i in all_actions:
         #     print(i)
 
         if_equal_divide_by = 1
-        for m, c in sorted(all_moves, reverse=False):
+        for m, c in sorted(all_actions, reverse=False):
             temp_self = copy.deepcopy(self)
 
             if m == 0:
@@ -433,7 +434,7 @@ class Agent(Player):
             elif m == 2:
                 temp_self.trade(c[0], c[1])
 
-            # print('after making move', m, c)
+            # print('after making action', m, c)
             # temp_self._game.print_game()
             # print()
             
@@ -463,7 +464,7 @@ class Agent(Player):
         # opt_self._game.print_game()
         # print()
 
-        # print('After making optimal move')
+        # print('After making optimal action')
         # self._game.print_game()
 
         return self._game
@@ -518,7 +519,7 @@ def save_values():
     global state_values
     f = open('state_values.pickle', 'wb')
     try:
-        os.remove(f)
+        os.reaction(f)
     except:
         pass
 
