@@ -34,4 +34,3 @@ for i in sorted(state_values, key=state_values.get)[-20:]:
     print(i, state_values[i])
             
 
-

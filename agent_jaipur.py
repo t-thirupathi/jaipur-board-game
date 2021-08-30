@@ -45,7 +45,7 @@ class Jaipur:
 
         self._deck = [Commodity.DIAMOND] * 6 + [Commodity.GOLD] * 6 + [Commodity.SILVER] * 6 + \
                        [Commodity.SILK] * 8 + [Commodity.SPICE] * 8 + [Commodity.LEATHER] * 10 + \
-                       [Commodity.CAMEL] * 8
+                       [Commodity.CAMEL] * 8 #8 camels + 3 camels in market (11 total)
         random.shuffle(self._deck)
 
         self.market = Counter()
@@ -60,6 +60,7 @@ class Jaipur:
         self._player1 = player1_type(tag='P1', game=self)
         self._player2 = player2_type(tag='P2', game=self)
 
+        # Deal 5 cards to each player
         for i in range(5):
             for _player in self._player1, self._player2:
                 commodity = self._deck.pop()
@@ -68,19 +69,15 @@ class Jaipur:
                 else:
                     _player.hand[commodity] += 1
 
-
         self.winner = None
         self._players_gen = cycle([self._player1, self._player2]) 
         self.player_turn = next(self._players_gen)
 
-    def deck_size(self):
-        return len(self._deck)
-
     def pick_commodity(self, commodity=None):
-        if sum(self.market.values()) == 0:
+        if sum(self.market.values()) == 0: #Assert
             return (None, 0)
 
-        if commodity is not None and self.market[commodity] > 0:
+        if commodity is not None and self.market[commodity] > 0: #Assert
             picked_commodity = commodity
         else:
             market_list = []
@@ -110,7 +107,7 @@ class Jaipur:
 
         return (picked_commodity, pick_count)
 
-
+    # print hand or market with less clutter
     def pprint(self, s, c):
         print(s, end=' ')
         for i in c.keys():
@@ -123,7 +120,7 @@ class Jaipur:
             return
 
         print('price_tokens: ', self.price_tokens.values())
-        print('deck size:', self.deck_size())
+        print('deck size:', len(self._deck))
         self.pprint('market: ', self.market)
         self.pprint('P1 hand: ', self._player1.hand)
         self.pprint('P2 hand: ', self._player2.hand)
@@ -191,7 +188,7 @@ class Jaipur:
             elif self._player1.final_score < self._player2.final_score:
                 self.winner = self._player2.tag
             else:
-                self.winner = self._player2.tag #TODO
+                self.winner = self._player2.tag #TODO tie breaker
         return self.winner
 
 
@@ -273,7 +270,11 @@ class Player:
         all_actions = []
         if self.hand_size() < 7:
             all_actions += [(Action.TAKE, i) for i in take_commodities]
-        all_actions += [(Action.SELL, i) for i in sell_commodities]
+
+        for commodity in sell_commodities:
+            precious = Commodity.is_precious(commodity)
+            for i in range(precious, self.hand[commodity]):
+                all_actions += [(Action.SELL, commodity, i + 1)]
 
         commodities_to_give = []
         for i in self.hand:
@@ -292,7 +293,6 @@ class Player:
 
 
     def take(self, commodity=None):
-        # self._game.pprint('before taking:', self.hand)
         if not self._game.muted:
             print('taking..', commodity)
 
@@ -303,11 +303,7 @@ class Player:
             else:
                 self.hand[taken] += take_count
 
-        # self._game.pprint('after taking:', self.hand)
-
-
-    def sell(self, commodity=None, count=0):
-        # print('before selling..', self.tokens)
+    def sell(self, commodity, count):
         if not self._game.muted:
             print('selling..', commodity)
 
@@ -315,9 +311,6 @@ class Player:
             commodity = self.hand.most_common(1)[0][0]
 
         if ((not Commodity.is_precious(commodity)) and self.hand[commodity] > 0) or self.hand[commodity] > 1:
-
-            count = self.hand[commodity] #TODO As of now sell all cards of this type
-
             for i in range(count):
                 if self._game.price_tokens[commodity]:
                     self.tokens.append(self._game.price_tokens[commodity].pop())
@@ -334,8 +327,8 @@ class Player:
         # print('after selling...', self.tokens)
 
     def trade(self, give=None, take=None):
-        # if not self._game.muted:
-        #     print('trading..', (give, take))
+        if not self._game.muted:
+            print('trading..', (give, take))
 
         if give == None or take == None:
             return
@@ -359,14 +352,13 @@ class Player:
         self.hand += take
 
         self.camel_count -= give[Commodity.CAMEL]
-        
 
     def do_action(self, winner, learn=False):
         all_actions = self.get_all_actions()
         action = random.choice(all_actions)
 
         for i, action in enumerate(all_actions):
-            #to make print look uncluttered
+            #To make print look less cluttered
             if action[0] == Action.TRADE:
                 print(i, action[0], end=' : ')
                 for c in action[1][0]:
@@ -375,6 +367,8 @@ class Player:
                 for c in action[1][1]:
                     print(c, end=', ')
                 print()
+            elif action[0] == Action.SELL:
+                print(i, action[0], ':', action[1], action[2])
             else:
                 print(i, action[0], ':', action[1])
         action = all_actions[int(input('Choose action..'))]
@@ -382,7 +376,7 @@ class Player:
         if action[0] == Action.TAKE:
             self.take(action[1])
         elif action[0] == Action.SELL:
-            self.sell(action[1])
+            self.sell(action[1], action[2])
         elif action[0] == Action.TRADE:
             self.trade(action[1][0], action[1][1])
 
@@ -616,7 +610,7 @@ def test(n=100):
     print('P2:', n - pvp_p1_wins)
 
 
-def play():
+if __name__ == "__main__":
     play_to_learn(100000, muted=True)
 
     game = Jaipur(Player, Agent)
@@ -624,6 +618,4 @@ def play():
 
     test(100)
 
-if __name__ == "__main__":
-    play()
 
